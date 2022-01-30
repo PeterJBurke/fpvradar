@@ -1,3 +1,6 @@
+from pickle import FALSE
+from sre_constants import IN
+from traceback import print_exc
 import requests
 import geopy.distance
 import time
@@ -6,12 +9,19 @@ from gps import *
 from time import sleep
 from gpiozero import Buzzer
 from datetime import datetime
+import os
+from gtts import gTTS
+from io import BytesIO
+
+import numpy
+import math
 
 #This code is released under the terms of the unlicense: https://unlicense.org/
 #Author github.com/lexfp
 
 # Disclaimer: This code is not pretty. It is written like a script since that is what it is. 
-DUMP1090_URL = 'http://127.0.0.1/dump1090-fa/data/aircraft.json'
+#DUMP1090_URL = 'http://127.0.0.1/dump1090-fa/data/aircraft.json'
+DUMP1090_URL = 'http://127.0.0.1/tar1090/data/aircraft.json'
 UNKNOWN = 'Unknown'
 LATITUDE = 'lat'
 LONGTITUDE = 'lon'
@@ -22,25 +32,37 @@ INTERVAL_SECONDS = 3
 initialGPSLockBeep=True 
 # I keep this value large so I know the app is running since it will always beep once.
 # you can set the value lower to have a quieter system and a 3rd perimeter
-OUTER_PERIMETER_ALARM_MILES = 100 
+OUTER_PERIMETER_ALARM_MILES = 2
 # middle perimeter trigger sets of 2 beeps
-MIDDLE_PERIMETER_ALARM_MILES = 5
+MIDDLE_PERIMETER_ALARM_MILES = 1.5
 # inner perimeter trigger sets of 3 beeps
-INNER_PERIMETER_ALARM_MILES = 2
+INNER_PERIMETER_ALARM_MILES = 1
 # upper limit of altitude at which you want to monitor aircraft
-ALTITUDE_ALARM_FEET = 1000
+ALTITUDE_ALARM_FEET = 5000
 running = True
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 buzzer = Buzzer(BUZZER_PIN)
 lastKnownLat=UNKNOWN
 lastKnownLon=UNKNOWN
+
+DEFAULTLAT  = 33.635029
+DEFAULTLON = -117.842218
+
+
+GPS_lock=False
+
+NUM_GPS_TRIES_UNTIL_DEFAULT=10
+
 # the number of iterations we should try to reuse the last known position 
 # set this to -1 if you plan on relocating the unit to a location with poor GPS 
 # reception once initial position is established and you don't plan on moving around
 # then it will never need the GPS coordinates again if they are not available
-LAST_KNOWN_POSITION_REUSE_TIMES = 3
+LAST_KNOWN_POSITION_REUSE_TIMES = -1
 lastKnownPosReuse=0
 failedGPSTries=0
+
+# internet status
+internet_is_connected = False
 
 def getPositionData(gps):
     nx = gpsd.next()
@@ -76,20 +98,30 @@ def checkRadar():
     global gpsd
     homecoords = getPositionData(gpsd)
     print homecoords
+    if not ((homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN)): # we have a good gps lock!
+        failedGPSTries = 0
+        GPS_lock=True
     if (homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN):
-        #print "Cannot determine GPS position yet...try #"+str(failedGPSTries)
+        GPS_lock=False
+        print "Cannot determine GPS position yet...try #"+str(failedGPSTries)
         #sleep(1)
         failedGPSTries += 1
-        if failedGPSTries > 10:
-            print "Too many failed GPS tries, initializing new GPS object..."
-            failedGPSTries = 0
-            gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
-        return
+        if failedGPSTries < NUM_GPS_TRIES_UNTIL_DEFAULT:
+            return # keep trying up to 10ish tries
+        if failedGPSTries == NUM_GPS_TRIES_UNTIL_DEFAULT: # inform user no lock, using default lat/lon
+            text_to_say_about_no_gps='No GPS lock. Using default position.'
+            tts_depending_on_internet(text_to_say_about_no_gps)
+        if failedGPSTries >= NUM_GPS_TRIES_UNTIL_DEFAULT: # lots of tries, go for default
+            homecoords=(DEFAULTLAT, DEFAULTLON)
+
     global initialGPSLockBeep
-    if initialGPSLockBeep == True:
+    if initialGPSLockBeep == True and GPS_lock == True:
     	initialGPSLockBeep=False
-       	buzz(1)
-        sleep(5)
+       	buzz(0.1)
+        #print 'gps lock, calling tts'
+        tts_depending_on_internet("GPS Lock.")
+        #print 'called tts'
+        sleep(2)
     r = requests.get(DUMP1090_URL)
     try:
         airplanes = r.json()
@@ -104,35 +136,152 @@ def checkRadar():
             altitude = airplane["alt_baro"]
             planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
             distanceToPlane = geopy.distance.vincenty(homecoords, planecoords).miles
+            bearing_to_plane=get_bearing(homecoords[0], homecoords[1], airplane[LATITUDE], airplane[LONGTITUDE])
             if altitude < ALTITUDE_ALARM_FEET:
                 if distanceToPlane < INNER_PERIMETER_ALARM_MILES:
                     innerAlarmTriggered = True
-                    print 'Inner alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)
+                    #print 'Inner alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'
+                    auralreport(distanceToPlane,altitude,bearing_to_plane)
                 elif distanceToPlane < MIDDLE_PERIMETER_ALARM_MILES:
                     middleAlarmTriggered = True
-                    print 'Middle alarm triggered by '+airplane['flight']+' at ' +str(datetime.now())+' with distance '+str(distanceToPlane)
+                    #print 'Middle alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'
+                    auralreport(distanceToPlane,altitude,bearing_to_plane)
                 elif distanceToPlane < OUTER_PERIMETER_ALARM_MILES:
                     outerAlarmTriggered = True
-                    print 'Outer alarm triggered by '+airplane['flight']+' at ' +str(datetime.now())+' with distance '+str(distanceToPlane)
+                    auralreport(distanceToPlane,altitude,bearing_to_plane)
+                    #print 'Outer alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'   
         except KeyError:
             pass
     if innerAlarmTriggered:
-        buzz()
-        buzz()
-        buzz()
+        buzz(0.05)
+        buzz(0.05)
+        buzz(0.05)
     elif middleAlarmTriggered:
-        buzz()
-        buzz()
+        buzz(0.05)
+        buzz(0.05)
     elif outerAlarmTriggered:
-        buzz()
+        buzz(0.05)
 
+
+def auralreport(m_distance,m_alt,m_bearing):
+    buzz(0.1)
+    distance_string = "{:.1f}".format(m_distance)
+    m_bearing_string = "{:.0f}".format(m_bearing)
+   
+    deltadegrees=22.5
+    if(m_bearing<deltadegrees):
+        m_direction_text='north'
+    elif((m_bearing>=(45-deltadegrees))) and (m_bearing<(45+deltadegrees)):
+        m_direction_text='northeast'
+    elif((m_bearing>=(90-deltadegrees))) and (m_bearing<(90+deltadegrees)):
+        m_direction_text='east'
+    elif((m_bearing>=(135-deltadegrees))) and (m_bearing<(135+deltadegrees)):
+        m_direction_text='southeast'
+    elif((m_bearing>=(180-deltadegrees))) and (m_bearing<(180+deltadegrees)):
+        m_direction_text='south'
+    elif((m_bearing>=(225-deltadegrees))) and (m_bearing<(225+deltadegrees)):
+        m_direction_text='southwest'
+    elif((m_bearing>=(270-deltadegrees))) and (m_bearing<(270+deltadegrees)):
+        m_direction_text='west'
+    elif((m_bearing>=(315-deltadegrees))) and (m_bearing<(315+deltadegrees)):
+        m_direction_text='northwest'
+    elif(m_bearing>=(360-deltadegrees)):
+        m_direction_text='north'
+    
+    #texttosay='Attention: Aircraft detected with to the '+ m_direction_text+ ' with altitude '+str(m_alt) +' feet, at '+  distance_string + ' miles. At bearing '+m_bearing_string +" degrees."
+    if GPS_lock==True:
+        texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ ' at altitude '+str(m_alt) +' feet.'
+    if GPS_lock==False:
+        texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ 'of default position at altitude '+str(m_alt) +' feet.'
+    print texttosay
+    tts_depending_on_internet(texttosay)
+
+
+def tts_depending_on_internet(m_text_to_say):
+    if (internet_is_connected==True):
+        #print 'calling gtts'
+        tts_google(m_text_to_say)
+        #print 'did call gtts'
+
+    else: 
+        #print 'calling festival'
+        tts_festival(m_text_to_say)
+        #print 'did call festival'
+
+
+def tts_festival(m_text_to_say):
+    systemcommandtosend='echo "'+m_text_to_say+'"| festival --tts'
+    os.system(systemcommandtosend)   
+    
+def tts_google(m_text_to_say):
+    # see xyz
+    # for not using file see :
+    # https://gtts.readthedocs.io/en/latest/module.html#playing-sound-directly
+    language = 'en'
+    #myobj = gTTS(text=m_text_to_say, lang=language,  slow=False) # standard
+    #myobj = gTTS(text=m_text_to_say, lang=language, tld='ie', slow=False) # Irish
+    #myobj = gTTS(text=m_text_to_say, lang=language, tld='co.uk', slow=False) # UK
+    #print 'google tts starting'
+    myobj = gTTS(text=m_text_to_say, lang=language, tld='com.au', slow=False) # Australian
+    #print 'google tts started'
+    myobj.save("/home/pi/fpvradar/tts.mp3")
+    #print 'mp3 saved'
+    os.system("mpg321 /home/pi/fpvradar/tts.mp3")
+    #print 'mp3 played'
+    #mp3_fp = BytesIO()
+    #tts = gTTS('hello', lang='en')
+    #tts.write_to_fp(mp3_fp)
+
+
+
+
+
+def get_bearing(lat1, long1, lat2, long2):
+    # from https://stackoverflow.com/questions/54873868/python-calculate-bearing-between-two-lat-long
+    # see also:
+    # from https://www.movable-type.co.uk/scripts/latlong.html
+    # https://pypi.org/project/pyproj/
+
+    dLon = (long2 - long1)
+    x = math.cos(math.radians(lat2)) * math.sin(math.radians(dLon))
+    y = math.cos(math.radians(lat1)) * math.sin(math.radians(lat2)) - math.sin(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.cos(math.radians(dLon))
+    brng = numpy.arctan2(x,y)
+    brng = numpy.degrees(brng) + 360
+    if(brng<0):
+        brng=brng+360
+    if(brng>360):
+        brng=brng-360
+    return brng
+
+
+def check_internet():
+    #os.seteuid(pi)
+    #os.system('whoami')
+    # from: https://betterprogramming.pub/how-to-check-the-users-internet-connection-in-python-224e32d870c8
+    url='http://google.com'
+    timeout=INTERVAL_SECONDS
+    #sleep(10)
+    try:
+        r = requests.head(url, timeout=timeout)
+        print 'Internet is CONNECTED.'
+        sleep(INTERVAL_SECONDS)
+        return True
+    except requests.ConnectionError as ex:
+        print 'Internet is NOT CONNECTED.'
+        print(ex)
+        return False
+    return False
 
 try:
     print "Application started!"
+
+    internet_is_connected=check_internet()
+
     while running:
         checkRadar()
         sys.stdout.flush()
-        time.sleep(INTERVAL_SECONDS)
+        #time.sleep(INTERVAL_SECONDS)
+        internet_is_connected= check_internet()
 
 except (ValueError):
 	#sometimes we get errors parsing json
