@@ -119,8 +119,8 @@ def checkRadar():
     global initialGPSLockBeep
     if initialGPSLockBeep == True and GPS_lock == True:
     	initialGPSLockBeep=False
-        buzz(0.5)
-        buzz(0.5)
+        buzz(1)
+        buzz(1)
         #print 'gps lock, calling tts'
         tts_depending_on_internet("GPS Lock.")
         #print 'called tts'
@@ -160,10 +160,10 @@ def checkRadar():
         buzz(1)
         buzz(1)
     elif middleAlarmTriggered:
-        buzz(0.5)
-        buzz(0.5)
+        buzz(1)
+        buzz(1)
     elif outerAlarmTriggered:
-        buzz(0.75)
+        buzz(1)
 
 
 def auralreport(m_distance,m_alt,m_bearing):
