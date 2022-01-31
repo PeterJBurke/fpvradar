@@ -38,7 +38,7 @@ MIDDLE_PERIMETER_ALARM_MILES = 1.5
 # inner perimeter trigger sets of 3 beeps
 INNER_PERIMETER_ALARM_MILES = 1
 # upper limit of altitude at which you want to monitor aircraft
-ALTITUDE_ALARM_FEET = 5000
+ALTITUDE_ALARM_FEET = 2000
 running = True
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 buzzer = Buzzer(BUZZER_PIN)
