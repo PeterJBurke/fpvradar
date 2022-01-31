@@ -156,14 +156,14 @@ def checkRadar():
         except KeyError:
             pass
     if innerAlarmTriggered:
-        buzz(0.25)
-        buzz(0.25)
-        buzz(0.25)
+        buzz(1)
+        buzz(1)
+        buzz(1)
     elif middleAlarmTriggered:
-        buzz(0.25)
-        buzz(0.25)
+        buzz(0.5)
+        buzz(0.5)
     elif outerAlarmTriggered:
-        buzz(0.25)
+        buzz(0.75)
 
 
 def auralreport(m_distance,m_alt,m_bearing):
