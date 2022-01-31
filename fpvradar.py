@@ -32,7 +32,7 @@ INTERVAL_SECONDS = 3
 initialGPSLockBeep=True 
 # I keep this value large so I know the app is running since it will always beep once.
 # you can set the value lower to have a quieter system and a 3rd perimeter
-OUTER_PERIMETER_ALARM_MILES = 2
+OUTER_PERIMETER_ALARM_MILES = 2.0
 # middle perimeter trigger sets of 2 beeps
 MIDDLE_PERIMETER_ALARM_MILES = 1.5
 # inner perimeter trigger sets of 3 beeps
@@ -96,6 +96,7 @@ def buzz(wait=0.1):
 def checkRadar():
     global failedGPSTries
     global gpsd
+    global GPS_lock
     homecoords = getPositionData(gpsd)
     print homecoords
     if not ((homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN)): # we have a good gps lock!
@@ -111,13 +112,15 @@ def checkRadar():
         if failedGPSTries == NUM_GPS_TRIES_UNTIL_DEFAULT: # inform user no lock, using default lat/lon
             text_to_say_about_no_gps='No GPS lock. Using default position.'
             tts_depending_on_internet(text_to_say_about_no_gps)
+            initialGPSLockBeep == True
         if failedGPSTries >= NUM_GPS_TRIES_UNTIL_DEFAULT: # lots of tries, go for default
             homecoords=(DEFAULTLAT, DEFAULTLON)
 
     global initialGPSLockBeep
     if initialGPSLockBeep == True and GPS_lock == True:
     	initialGPSLockBeep=False
-       	buzz(0.1)
+        buzz(0.5)
+        buzz(0.5)
         #print 'gps lock, calling tts'
         tts_depending_on_internet("GPS Lock.")
         #print 'called tts'
@@ -153,18 +156,18 @@ def checkRadar():
         except KeyError:
             pass
     if innerAlarmTriggered:
-        buzz(0.05)
-        buzz(0.05)
-        buzz(0.05)
+        buzz(0.25)
+        buzz(0.25)
+        buzz(0.25)
     elif middleAlarmTriggered:
-        buzz(0.05)
-        buzz(0.05)
+        buzz(0.25)
+        buzz(0.25)
     elif outerAlarmTriggered:
-        buzz(0.05)
+        buzz(0.25)
 
 
 def auralreport(m_distance,m_alt,m_bearing):
-    buzz(0.1)
+    #buzz(0.5)
     distance_string = "{:.1f}".format(m_distance)
     m_bearing_string = "{:.0f}".format(m_bearing)
    
@@ -191,9 +194,9 @@ def auralreport(m_distance,m_alt,m_bearing):
     #texttosay='Attention: Aircraft detected with to the '+ m_direction_text+ ' with altitude '+str(m_alt) +' feet, at '+  distance_string + ' miles. At bearing '+m_bearing_string +" degrees."
     if GPS_lock==True:
         texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ ' at altitude '+str(m_alt) +' feet.'
-    if GPS_lock==False:
+    else:
         texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ 'of default position at altitude '+str(m_alt) +' feet.'
-    print texttosay
+    print(texttosay)
     tts_depending_on_internet(texttosay)
 
 
