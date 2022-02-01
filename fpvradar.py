@@ -12,6 +12,7 @@ from datetime import datetime
 import os
 from gtts import gTTS
 from io import BytesIO
+import traceback
 
 import numpy
 import math
@@ -296,6 +297,10 @@ except (KeyboardInterrupt):
 
 except:
     print "Caught generic exception - continuing"
+    print "Initializing new GPS object..."
+    gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
+    # https://stackoverflow.com/questions/1483429/how-to-print-an-exception-in-python
+    traceback.print_exc()
     sys.stdout.flush()
     pass
 
