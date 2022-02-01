@@ -82,7 +82,7 @@ def getPositionData(gps):
         #print "Your position: lon = " + str(longitude) + ", lat = " + str(latitude)
         return (lastKnownLat, lastKnownLon)
     else:
-        print "NON TPV gps class encountered: "+nx['class']
+        #print "NON TPV gps class encountered: "+nx['class']
         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
     	    return (lastKnownLat, lastKnownLon)
         elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
