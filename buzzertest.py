@@ -48,6 +48,8 @@ gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 buzzer = Buzzer(BUZZER_PIN)
 lastKnownLat=UNKNOWN
 lastKnownLon=UNKNOWN
+BUZZ_TIME=1.0
+WAIT_TIME=1.0
 
 DEFAULTLAT  = 33.635029
 DEFAULTLON = -117.842218
@@ -101,10 +103,8 @@ def checkRadar():
     global failedGPSTries
     global gpsd
     global GPS_lock
-    global initialGPSLockBeep
-
     homecoords = getPositionData(gpsd)
-    #print(homecoords)
+    print homecoords
     if not ((homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN)): # we have a good gps lock!
         failedGPSTries = 0
         GPS_lock=True
@@ -122,9 +122,9 @@ def checkRadar():
         if failedGPSTries >= NUM_GPS_TRIES_UNTIL_DEFAULT: # lots of tries, go for default
             homecoords=(DEFAULTLAT, DEFAULTLON)
 
+    global initialGPSLockBeep
     if initialGPSLockBeep == True and GPS_lock == True:
     	initialGPSLockBeep=False
-        print("GPS LOCK: ", homecoords)
         buzz(1)
         buzz(1)
         #print 'gps lock, calling tts'
@@ -280,26 +280,28 @@ def check_internet():
     #sleep(10)
     try:
         r = requests.head(url, timeout=timeout)
-        #print 'Internet is CONNECTED.'
+        print 'Internet is CONNECTED.'
         sleep(INTERVAL_SECONDS)
         return True
     except requests.ConnectionError as ex:
-        #print 'Internet is NOT CONNECTED.'
+        print 'Internet is NOT CONNECTED.'
         print(ex)
         return False
     return False
 
 try:
-    print('-------------------------------------------------------------')
-    print("Application started!")
+    print "Application started!"
 
-    internet_is_connected=check_internet()
+    #internet_is_connected=check_internet()
 
     while running:
-        checkRadar()
-        sys.stdout.flush()
+        #checkRadar()
+        #sys.stdout.flush()
         #time.sleep(INTERVAL_SECONDS)
-        internet_is_connected= check_internet()
+        #internet_is_connected= check_internet()
+        buzz(BUZZ_TIME)
+        sleep(WAIT_TIME)
+        print("next!")
 
 except (ValueError):
 	#sometimes we get errors parsing json
