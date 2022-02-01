@@ -17,6 +17,9 @@ import traceback
 import numpy
 import math
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 #This code is released under the terms of the unlicense: https://unlicense.org/
 #Author github.com/lexfp
 
@@ -214,7 +217,7 @@ def tts_depending_on_internet(m_text_to_say):
 
 
 def tts_festival(m_text_to_say):
-    systemcommandtosend='echo "'+m_text_to_say+'"| festival --tts'
+    systemcommandtosend='echo "'+m_text_to_say+'"| festival --tts '
     os.system(systemcommandtosend)   
     
 def tts_google(m_text_to_say):
@@ -226,11 +229,19 @@ def tts_google(m_text_to_say):
     #myobj = gTTS(text=m_text_to_say, lang=language, tld='ie', slow=False) # Irish
     #myobj = gTTS(text=m_text_to_say, lang=language, tld='co.uk', slow=False) # UK
     #print 'google tts starting'
-    myobj = gTTS(text=m_text_to_say, lang=language, tld='com.au', slow=False) # Australian
+    try:
+        myobj = gTTS(text=m_text_to_say, lang=language, tld='com.au', slow=False) # Australian
+    except:
+        speed(0.1)
+        pass
     #print 'google tts started'
-    myobj.save("/home/pi/fpvradar/tts.mp3")
+    try:
+        myobj.save("/home/pi/fpvradar/tts.mp3")
+    except:
+        sleep(0.1)
+        pass
     #print 'mp3 saved'
-    os.system("mpg321 /home/pi/fpvradar/tts.mp3")
+    os.system("mpg321 /home/pi/fpvradar/tts.mp3  >  /dev/null 2>&1")
     #print 'mp3 played'
     #mp3_fp = BytesIO()
     #tts = gTTS('hello', lang='en')
