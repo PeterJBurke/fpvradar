@@ -17,6 +17,12 @@ import traceback
 from datetime import date
 
 
+from time import *
+import time
+import threading
+ 
+
+
 import numpy
 import math
 
@@ -47,7 +53,7 @@ INNER_PERIMETER_ALARM_MILES = 1
 # upper limit of altitude at which you want to monitor aircraft
 ALTITUDE_ALARM_FEET = 200000
 running = True
-gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
+#gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 print('latitude\tlongitude\ttime utc\t\t\taltitude\tepv\tept\tspeed\tclimb') # '\t' = TAB to try and output the data in columns.
 
 buzzer = Buzzer(BUZZER_PIN)
@@ -73,6 +79,23 @@ failedGPSTries=0
 # internet status
 internet_is_connected = False
 
+# GPS thread
+gpsdthread = None #seting the global variable
+
+class GpsPoller(threading.Thread):
+  def __init__(self):
+    threading.Thread.__init__(self)
+    global gpsdthread #bring it in scope
+    gpsdthread = gps(mode=WATCH_ENABLE) #starting the stream of info
+    self.current_value = None
+    self.running = True #setting the thread running to true
+ 
+  def run(self):
+    global gpsdthread
+    while gpsp.running:
+      gpsdthread.next() #this will continue to loop and grab EACH set of gpsd info to clear the buffer
+
+
 def getPositionData(gps):
     nx = gpsd.next()
     # For a list of all supported classes and fields refer to:
@@ -95,6 +118,31 @@ def getPositionData(gps):
             return (lastKnownLat, lastKnownLon)
         else:
     	    return(UNKNOWN,UNKNOWN)
+
+
+def getPositionDataFromThread(gps):
+    nx = gpsd.next()
+    # For a list of all supported classes and fields refer to:
+    # https://gpsd.gitlab.io/gpsd/gpsd_json.html
+    global lastKnownLat
+    global lastKnownLon
+    global lastKnownPosReuse
+    if nx['class'] == 'TPV':
+        lastKnownLat = getattr(nx, LATITUDE, UNKNOWN)
+        lastKnownLon = getattr(nx, LONGTITUDE, UNKNOWN)
+        lastKnownPosReuse=0 #reset counter since we refreshed coords
+        #print "Your position: lon = " + str(longitude) + ", lat = " + str(latitude)
+        return (lastKnownLat, lastKnownLon)
+    else:
+        #print "NON TPV gps class encountered: "+nx['class']
+        if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
+            return (lastKnownLat, lastKnownLon)
+        elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
+            lastKnownPosReuse += 1
+            return (lastKnownLat, lastKnownLon)
+        else:
+    	    return(UNKNOWN,UNKNOWN)
+
 
 def buzz(wait=0.1):
     buzzer.on()
@@ -397,16 +445,28 @@ try:
     print('-------------------------------------------------------------')
     print("Application started!")
 
+    print('-------------------------------------------------------------')
+    print("Launching GPS thread")
+    gpsp = GpsPoller() # create the thread
+    gpsp.start() # start it up
+    print("GPS thread launched!")
+    print('-------------------------------------------------------------')
+
     ##internet_is_connected=check_internet()
 
     while running:
         ##checkRadar()
         #checkRadartest()
         #nx = gpsd.next()
-        testgps()
+        #testgps()
         sys.stdout.flush()
         sleep(INTERVAL_SECONDS)
-        print(datetime.now())
+        # print(datetime.now())
+        # print( 'latitude    ' , gpsdthread.fix.latitude)
+        # print( 'longitude   ' , gpsdthread.fix.longitude)
+        #print( 'mode        ' , gpsd.fix.mode) # mode 3 means 3d fix
+        print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
+
         #time.sleep(INTERVAL_SECONDS)
         ##internet_is_connected= check_internet()
 
