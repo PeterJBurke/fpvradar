@@ -125,6 +125,8 @@ def getPositionDataUsingThread():
     # print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
     if gpsdthread.fix.mode == 3: # fix
         lastKnownPosReuse=0 #reset counter since we refreshed coords
+        lastKnownLat=gpsdthread.fix.latitude
+        lastKnownLon=gpsdthread.fix.longitude
         return (lastKnownLat, lastKnownLon)
     else: #  no fix
         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
