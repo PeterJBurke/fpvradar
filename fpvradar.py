@@ -7,12 +7,15 @@ import time
 import sys
 from gps import *
 from time import sleep
+import RPi.GPIO as GPIO
 from gpiozero import Buzzer
 from datetime import datetime
 import os
 from gtts import gTTS
 from io import BytesIO
 import traceback
+from datetime import date
+
 
 import numpy
 import math
@@ -36,15 +39,17 @@ INTERVAL_SECONDS = 3
 initialGPSLockBeep=True 
 # I keep this value large so I know the app is running since it will always beep once.
 # you can set the value lower to have a quieter system and a 3rd perimeter
-OUTER_PERIMETER_ALARM_MILES = 2.0
+OUTER_PERIMETER_ALARM_MILES = 2.5
 # middle perimeter trigger sets of 2 beeps
 MIDDLE_PERIMETER_ALARM_MILES = 1.5
 # inner perimeter trigger sets of 3 beeps
 INNER_PERIMETER_ALARM_MILES = 1
 # upper limit of altitude at which you want to monitor aircraft
-ALTITUDE_ALARM_FEET = 2000
+ALTITUDE_ALARM_FEET = 200000
 running = True
 gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
+print('latitude\tlongitude\ttime utc\t\t\taltitude\tepv\tept\tspeed\tclimb') # '\t' = TAB to try and output the data in columns.
+
 buzzer = Buzzer(BUZZER_PIN)
 lastKnownLat=UNKNOWN
 lastKnownLon=UNKNOWN
@@ -84,11 +89,11 @@ def getPositionData(gps):
     else:
         #print "NON TPV gps class encountered: "+nx['class']
         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
-    	    return (lastKnownLat, lastKnownLon)
+            return (lastKnownLat, lastKnownLon)
         elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
             lastKnownPosReuse += 1
-    	    return (lastKnownLat, lastKnownLon)
-    	else:
+            return (lastKnownLat, lastKnownLon)
+        else:
     	    return(UNKNOWN,UNKNOWN)
 
 def buzz(wait=0.1):
@@ -104,13 +109,16 @@ def checkRadar():
     global initialGPSLockBeep
 
     homecoords = getPositionData(gpsd)
-    #print(homecoords)
+    x = datetime.now()
+    print(x)
+    #print("time= ",datetime.datetime.now())
+    print(homecoords)
     if not ((homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN)): # we have a good gps lock!
         failedGPSTries = 0
         GPS_lock=True
     if (homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN):
         GPS_lock=False
-        print "Cannot determine GPS position yet...try #"+str(failedGPSTries)
+        print("Cannot determine GPS position yet...try #"+str(failedGPSTries))
         #sleep(1)
         failedGPSTries += 1
         if failedGPSTries < NUM_GPS_TRIES_UNTIL_DEFAULT:
@@ -123,8 +131,8 @@ def checkRadar():
             homecoords=(DEFAULTLAT, DEFAULTLON)
 
     if initialGPSLockBeep == True and GPS_lock == True:
-    	initialGPSLockBeep=False
-        print("GPS LOCK: ", homecoords)
+        initialGPSLockBeep=False
+        print("GPS LOCK: ", homecoords, datetime.now())
         buzz(1)
         buzz(1)
         #print 'gps lock, calling tts'
@@ -144,7 +152,7 @@ def checkRadar():
         try:
             altitude = airplane["alt_baro"]
             planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
-            distanceToPlane = geopy.distance.vincenty(homecoords, planecoords).miles
+            distanceToPlane = geopy.distance.geodesic(homecoords, planecoords).miles
             bearing_to_plane=get_bearing(homecoords[0], homecoords[1], airplane[LATITUDE], airplane[LONGTITUDE])
             if altitude < ALTITUDE_ALARM_FEET:
                 if distanceToPlane < INNER_PERIMETER_ALARM_MILES:
@@ -171,6 +179,94 @@ def checkRadar():
     elif outerAlarmTriggered:
         buzz(1)
 
+def checkRadartest():
+    global failedGPSTries
+    global gpsd
+    global GPS_lock
+    global initialGPSLockBeep
+
+    homecoords = getPositionData(gpsd)
+    sleep(INTERVAL_SECONDS)
+    #print(homecoords)
+    if not ((homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN)): # we have a good gps lock!
+        failedGPSTries = 0
+        GPS_lock=True
+        print("GPS LOCK: ", homecoords,datetime.now())
+    if (homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN):
+        GPS_lock=False
+        print("Cannot determine GPS position yet...try #"+str(failedGPSTries))
+        #sleep(1)
+        failedGPSTries += 1
+        if failedGPSTries < NUM_GPS_TRIES_UNTIL_DEFAULT:
+            return # keep trying up to 10ish tries
+        if failedGPSTries == NUM_GPS_TRIES_UNTIL_DEFAULT: # inform user no lock, using default lat/lon
+            text_to_say_about_no_gps='No GPS lock. Using default position.'
+            tts_depending_on_internet(text_to_say_about_no_gps)
+            initialGPSLockBeep == True
+        if failedGPSTries >= NUM_GPS_TRIES_UNTIL_DEFAULT: # lots of tries, go for default
+            homecoords=(DEFAULTLAT, DEFAULTLON)
+
+    if initialGPSLockBeep == True and GPS_lock == True:
+        initialGPSLockBeep=False
+        print("GPS LOCK: ", homecoords,datetime.now())
+        #buzz(1)
+        #buzz(1)
+        #print 'gps lock, calling tts'
+        tts_depending_on_internet("GPS Lock.")
+        #print 'called tts'
+        sleep(2)
+    #r = requests.get(DUMP1090_URL)
+    # try:
+    #     airplanes = r.json()
+    # except:
+    #     #print 'Error while getting airplane data'
+    #     return
+    # outerAlarmTriggered = False
+    # middleAlarmTriggered = False
+    # innerAlarmTriggered = False
+    # for airplane in airplanes['aircraft']:
+    #     try:
+    #         altitude = airplane["alt_baro"]
+    #         planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
+    #         distanceToPlane = geopy.distance.geodesic(homecoords, planecoords).miles
+    #         bearing_to_plane=get_bearing(homecoords[0], homecoords[1], airplane[LATITUDE], airplane[LONGTITUDE])
+    #         if altitude < ALTITUDE_ALARM_FEET:
+    #             if distanceToPlane < INNER_PERIMETER_ALARM_MILES:
+    #                 innerAlarmTriggered = True
+    #                 #print 'Inner alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'
+    #                 auralreport(distanceToPlane,altitude,bearing_to_plane)
+    #             elif distanceToPlane < MIDDLE_PERIMETER_ALARM_MILES:
+    #                 middleAlarmTriggered = True
+    #                 #print 'Middle alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'
+    #                 auralreport(distanceToPlane,altitude,bearing_to_plane)
+    #             elif distanceToPlane < OUTER_PERIMETER_ALARM_MILES:
+    #                 outerAlarmTriggered = True
+    #                 auralreport(distanceToPlane,altitude,bearing_to_plane)
+    #                 #print 'Outer alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'   
+    #     except KeyError:
+    #         pass
+    # if innerAlarmTriggered:
+    #     buzz(1)
+    #     buzz(1)
+    #     buzz(1)
+    # elif middleAlarmTriggered:
+    #     buzz(1)
+    #     buzz(1)
+    # elif outerAlarmTriggered:
+    #     buzz(1)
+
+def testgps(): # from: https://ozzmaker.com/using-python-with-a-gps-receiver-on-a-raspberry-pi/
+    report = gpsd.next() #
+    if report['class'] == 'TPV':
+        print(getattr(report,'lat',0.0),"\t",)
+        print(getattr(report,'lon',0.0),"\t",)
+        print(getattr(report,'time',''),"\t",)
+        print(getattr(report,'alt','nan'),"\t\t",)
+        print(getattr(report,'epv','nan'),"\t",)
+        print(getattr(report,'ept','nan'),"\t",)
+        print(getattr(report,'speed','nan'),"\t",)
+        print(getattr(report,'climb','nan'),"\t")
+    return
 
 def auralreport(m_distance,m_alt,m_bearing):
     #buzz(0.5)
@@ -199,7 +295,15 @@ def auralreport(m_distance,m_alt,m_bearing):
     
     #texttosay='Attention: Aircraft detected with to the '+ m_direction_text+ ' with altitude '+str(m_alt) +' feet, at '+  distance_string + ' miles. At bearing '+m_bearing_string +" degrees."
     if GPS_lock==True:
+        print('**********************')
+        #dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+        print("date and time =", datetime.now())
+        #print("calling tts at ",datetime.datetime.now())
         texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ ' at altitude '+str(m_alt) +' feet.'
+        #print("finished tts at ",datetime.datetime.now())
+        #dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+        print("date and time =", datetime.now())
+        print('**********************')
     else:
         texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ 'of default position at altitude '+str(m_alt) +' feet.'
     print(texttosay)
@@ -293,13 +397,18 @@ try:
     print('-------------------------------------------------------------')
     print("Application started!")
 
-    internet_is_connected=check_internet()
+    ##internet_is_connected=check_internet()
 
     while running:
-        checkRadar()
+        ##checkRadar()
+        #checkRadartest()
+        #nx = gpsd.next()
+        testgps()
         sys.stdout.flush()
+        sleep(INTERVAL_SECONDS)
+        print(datetime.now())
         #time.sleep(INTERVAL_SECONDS)
-        internet_is_connected= check_internet()
+        ##internet_is_connected= check_internet()
 
 except (ValueError):
 	#sometimes we get errors parsing json
@@ -307,14 +416,16 @@ except (ValueError):
 
 except (KeyboardInterrupt):
     running = False
-    print "Applications closed!"
+    print("Applications closed!")
 
 except:
-    print "Caught generic exception - continuing"
-    print "Initializing new GPS object..."
+    print("Caught generic exception - continuing")
+    print("Initializing new GPS object...")
     gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
     # https://stackoverflow.com/questions/1483429/how-to-print-an-exception-in-python
     traceback.print_exc()
     sys.stdout.flush()
+    GPS_lock=False
+    initialGPSLockBeep=True
     pass
 
