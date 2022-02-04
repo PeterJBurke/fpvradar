@@ -63,7 +63,6 @@ lastKnownLon=UNKNOWN
 DEFAULTLAT  = 33.635029
 DEFAULTLON = -117.842218
 
-
 GPS_lock=False
 
 NUM_GPS_TRIES_UNTIL_DEFAULT=10
@@ -95,7 +94,6 @@ class GpsPoller(threading.Thread):
     while gpsp.running:
       gpsdthread.next() #this will continue to loop and grab EACH set of gpsd info to clear the buffer
 
-
 def getPositionData(gps):
     nx = gpsd.next()
     # For a list of all supported classes and fields refer to:
@@ -119,22 +117,16 @@ def getPositionData(gps):
         else:
     	    return(UNKNOWN,UNKNOWN)
 
-
-def getPositionDataFromThread(gps):
-    nx = gpsd.next()
-    # For a list of all supported classes and fields refer to:
-    # https://gpsd.gitlab.io/gpsd/gpsd_json.html
+def getPositionDataUsingThread():
     global lastKnownLat
     global lastKnownLon
-    global lastKnownPosReuse
-    if nx['class'] == 'TPV':
-        lastKnownLat = getattr(nx, LATITUDE, UNKNOWN)
-        lastKnownLon = getattr(nx, LONGTITUDE, UNKNOWN)
+    global lastKnownPosReuse  
+    global gpsdthread
+    # print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
+    if gpsdthread.fix.mode == 3: # fix
         lastKnownPosReuse=0 #reset counter since we refreshed coords
-        #print "Your position: lon = " + str(longitude) + ", lat = " + str(latitude)
         return (lastKnownLat, lastKnownLon)
-    else:
-        #print "NON TPV gps class encountered: "+nx['class']
+    else: #  no fix
         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
             return (lastKnownLat, lastKnownLon)
         elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
@@ -143,6 +135,28 @@ def getPositionDataFromThread(gps):
         else:
     	    return(UNKNOWN,UNKNOWN)
 
+# def getPositionDataFromThread(gps):
+#     nx = gpsd.next()
+#     # For a list of all supported classes and fields refer to:
+#     # https://gpsd.gitlab.io/gpsd/gpsd_json.html
+#     global lastKnownLat
+#     global lastKnownLon
+#     global lastKnownPosReuse
+#     if nx['class'] == 'TPV':
+#         lastKnownLat = getattr(nx, LATITUDE, UNKNOWN)
+#         lastKnownLon = getattr(nx, LONGTITUDE, UNKNOWN)
+#         lastKnownPosReuse=0 #reset counter since we refreshed coords
+#         #print "Your position: lon = " + str(longitude) + ", lat = " + str(latitude)
+#         return (lastKnownLat, lastKnownLon)
+#     else:
+#         #print "NON TPV gps class encountered: "+nx['class']
+#         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
+#             return (lastKnownLat, lastKnownLon)
+#         elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
+#             lastKnownPosReuse += 1
+#             return (lastKnownLat, lastKnownLon)
+#         else:
+    	    return(UNKNOWN,UNKNOWN)
 
 def buzz(wait=0.1):
     buzzer.on()
@@ -156,7 +170,8 @@ def checkRadar():
     global GPS_lock
     global initialGPSLockBeep
 
-    homecoords = getPositionData(gpsd)
+    #homecoords = getPositionData(gpsd)
+    homecoords = getPositionDataUsingThread()
     x = datetime.now()
     print(x)
     #print("time= ",datetime.datetime.now())
@@ -357,7 +372,6 @@ def auralreport(m_distance,m_alt,m_bearing):
     print(texttosay)
     tts_depending_on_internet(texttosay)
 
-
 def tts_depending_on_internet(m_text_to_say):
     if (internet_is_connected==True):
         #print 'calling gtts'
@@ -368,7 +382,6 @@ def tts_depending_on_internet(m_text_to_say):
         #print 'calling festival'
         tts_festival(m_text_to_say)
         #print 'did call festival'
-
 
 def tts_festival(m_text_to_say):
     systemcommandtosend='echo "'+m_text_to_say+'"| festival --tts '
@@ -400,10 +413,6 @@ def tts_google(m_text_to_say):
     #mp3_fp = BytesIO()
     #tts = gTTS('hello', lang='en')
     #tts.write_to_fp(mp3_fp)
-
-
-
-
 
 def get_bearing(lat1, long1, lat2, long2):
     # from https://stackoverflow.com/questions/54873868/python-calculate-bearing-between-two-lat-long
@@ -455,16 +464,12 @@ try:
     ##internet_is_connected=check_internet()
 
     while running:
-        ##checkRadar()
+        checkRadar()
         #checkRadartest()
         #nx = gpsd.next()
         #testgps()
         sys.stdout.flush()
         sleep(INTERVAL_SECONDS)
-        # print(datetime.now())
-        # print( 'latitude    ' , gpsdthread.fix.latitude)
-        # print( 'longitude   ' , gpsdthread.fix.longitude)
-        #print( 'mode        ' , gpsd.fix.mode) # mode 3 means 3d fix
         print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
 
         #time.sleep(INTERVAL_SECONDS)
@@ -481,11 +486,11 @@ except (KeyboardInterrupt):
 except:
     print("Caught generic exception - continuing")
     print("Initializing new GPS object...")
-    gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
-    # https://stackoverflow.com/questions/1483429/how-to-print-an-exception-in-python
+    # gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
+    # # https://stackoverflow.com/questions/1483429/how-to-print-an-exception-in-python
     traceback.print_exc()
     sys.stdout.flush()
-    GPS_lock=False
-    initialGPSLockBeep=True
+    # GPS_lock=False
+    # initialGPSLockBeep=True
     pass
 
