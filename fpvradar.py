@@ -174,10 +174,10 @@ def checkRadar():
 
     #homecoords = getPositionData(gpsd)
     homecoords = getPositionDataUsingThread()
-    x = datetime.now()
-    print(x)
+    #x = datetime.now()
+    #print(x)
     #print("time= ",datetime.datetime.now())
-    print(homecoords)
+    print(datetime.now(), homecoords)
     if not ((homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN)): # we have a good gps lock!
         failedGPSTries = 0
         GPS_lock=True
@@ -360,18 +360,11 @@ def auralreport(m_distance,m_alt,m_bearing):
     
     #texttosay='Attention: Aircraft detected with to the '+ m_direction_text+ ' with altitude '+str(m_alt) +' feet, at '+  distance_string + ' miles. At bearing '+m_bearing_string +" degrees."
     if GPS_lock==True:
-        print('**********************')
-        #dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-        print("date and time =", datetime.now())
-        #print("calling tts at ",datetime.datetime.now())
         texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ ' at altitude '+str(m_alt) +' feet.'
-        #print("finished tts at ",datetime.datetime.now())
-        #dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-        print("date and time =", datetime.now())
-        print('**********************')
     else:
         texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ 'of default position at altitude '+str(m_alt) +' feet.'
-    print(texttosay)
+        print('**********************')
+    print(datetime.now(), texttosay)
     tts_depending_on_internet(texttosay)
 
 def tts_depending_on_internet(m_text_to_say):
@@ -444,7 +437,7 @@ def check_internet():
     try:
         r = requests.head(url, timeout=timeout)
         #print 'Internet is CONNECTED.'
-        sleep(INTERVAL_SECONDS)
+        #sleep(INTERVAL_SECONDS)
         return True
     except requests.ConnectionError as ex:
         #print 'Internet is NOT CONNECTED.'
@@ -472,10 +465,10 @@ try:
         #testgps()
         sys.stdout.flush()
         sleep(INTERVAL_SECONDS)
-        print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
+        #print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
 
         #time.sleep(INTERVAL_SECONDS)
-        ##internet_is_connected= check_internet()
+        internet_is_connected= check_internet()
 
 except (ValueError):
 	#sometimes we get errors parsing json
