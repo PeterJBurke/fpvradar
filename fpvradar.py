@@ -45,13 +45,13 @@ INTERVAL_SECONDS = 3
 initialGPSLockBeep=True 
 # I keep this value large so I know the app is running since it will always beep once.
 # you can set the value lower to have a quieter system and a 3rd perimeter
-OUTER_PERIMETER_ALARM_MILES = 2.5
+OUTER_PERIMETER_ALARM_MILES = 2.0
 # middle perimeter trigger sets of 2 beeps
 MIDDLE_PERIMETER_ALARM_MILES = 1.5
 # inner perimeter trigger sets of 3 beeps
 INNER_PERIMETER_ALARM_MILES = 1
 # upper limit of altitude at which you want to monitor aircraft
-ALTITUDE_ALARM_FEET = 200000
+ALTITUDE_ALARM_FEET = 2000.0
 running = True
 #gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
 print('latitude\tlongitude\ttime utc\t\t\taltitude\tepv\tept\tspeed\tclimb') # '\t' = TAB to try and output the data in columns.
@@ -64,6 +64,9 @@ DEFAULTLAT  = 33.635029
 DEFAULTLON = -117.842218
 
 GPS_lock=False
+
+USE_BUZZER=False
+TTS=False
 
 NUM_GPS_TRIES_UNTIL_DEFAULT=10
 
@@ -161,9 +164,14 @@ def getPositionDataUsingThread():
     	    return(UNKNOWN,UNKNOWN)
 
 def buzz(wait=0.1):
-    buzzer.on()
-    sleep(wait)
-    buzzer.off()
+    if USE_BUZZER:
+        buzzer.on()
+        sleep(wait)
+        buzzer.off()
+    else:
+        sleep(wait)
+    
+    
     sleep(0.2)
 
 def checkRadar():
@@ -215,7 +223,7 @@ def checkRadar():
     innerAlarmTriggered = False
     for airplane in airplanes['aircraft']:
         try:
-            altitude = airplane["alt_baro"]
+            altitude = int(airplane["alt_baro"])
             planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
             distanceToPlane = geopy.distance.geodesic(homecoords, planecoords).miles
             bearing_to_plane=get_bearing(homecoords[0], homecoords[1], airplane[LATITUDE], airplane[LONGTITUDE])
@@ -368,15 +376,16 @@ def auralreport(m_distance,m_alt,m_bearing):
     tts_depending_on_internet(texttosay)
 
 def tts_depending_on_internet(m_text_to_say):
-    if (internet_is_connected==True):
-        #print 'calling gtts'
-        tts_google(m_text_to_say)
-        #print 'did call gtts'
+    if TTS:    
+        if (internet_is_connected==True):
+            #print 'calling gtts'
+            tts_google(m_text_to_say)
+            #print 'did call gtts'
 
-    else: 
-        #print 'calling festival'
-        tts_festival(m_text_to_say)
-        #print 'did call festival'
+        else: 
+            #print 'calling festival'
+            tts_festival(m_text_to_say)
+            #print 'did call festival'
 
 def tts_festival(m_text_to_say):
     systemcommandtosend='echo "'+m_text_to_say+'"| festival --tts '
@@ -457,6 +466,7 @@ try:
     print('-------------------------------------------------------------')
 
     ##internet_is_connected=check_internet()
+    
 
     while running:
         checkRadar()
@@ -466,9 +476,9 @@ try:
         sys.stdout.flush()
         sleep(INTERVAL_SECONDS)
         #print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
-
         #time.sleep(INTERVAL_SECONDS)
         internet_is_connected= check_internet()
+
 
 except (ValueError):
 	#sometimes we get errors parsing json
