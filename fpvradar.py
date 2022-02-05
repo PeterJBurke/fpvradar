@@ -122,7 +122,7 @@ def getPositionData(gps):
     	    return(UNKNOWN,UNKNOWN)
 
 def getPositionDataUsingThread():
-    #print('getPositionDataUsingThread called')
+    print('getPositionDataUsingThread called')
     global lastKnownLat
     global lastKnownLon
     global lastKnownPosReuse  
@@ -132,19 +132,19 @@ def getPositionDataUsingThread():
         lastKnownPosReuse=0 #reset counter since we refreshed coords
         lastKnownLat=gpsdthread.fix.latitude
         lastKnownLon=gpsdthread.fix.longitude
-        #print('getPositionDataUsingThread returning mode 3')
+        print('getPositionDataUsingThread returning mode 3')
         return (lastKnownLat, lastKnownLon)
     else: #  no fix
         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
             return (lastKnownLat, lastKnownLon)
-            #print('getPositionDataUsingThread returning no fix a')
+            print('getPositionDataUsingThread returning no fix a')
         elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
             lastKnownPosReuse += 1
             return (lastKnownLat, lastKnownLon)
-            #print('getPositionDataUsingThread returning no fix b')
+            print('getPositionDataUsingThread returning no fix b')
         else:
             return(UNKNOWN,UNKNOWN)
-            #print('getPositionDataUsingThread returning no fix c')
+            print('getPositionDataUsingThread returning no fix c')
 
 
 # def getPositionDataFromThread(gps):
@@ -310,13 +310,13 @@ def auralreport(m_distance,m_alt,m_bearing):
 def tts_depending_on_internet(m_text_to_say):
     if TTS == True:    
         if (internet_is_connected==True):
-            #print 'calling gtts'
+            print('calling gtts')
             tts_google(m_text_to_say)
-            #print 'did call gtts'
+            print('did call gtts')
         else: 
-            #print 'calling festival'
+            print('calling festival')
             tts_festival(m_text_to_say)
-            #print 'did call festival'
+            print ('did call festival')
     else:
         return
 
