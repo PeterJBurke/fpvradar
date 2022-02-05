@@ -65,6 +65,8 @@ DEFAULTLON = -117.842218
 
 GPS_lock=False
 
+m_iteration_number=0
+
 USE_BUZZER=False
 TTS=False
 
@@ -129,22 +131,25 @@ def getPositionDataUsingThread():
     global gpsdthread
     # print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
     if gpsdthread.fix.mode == 3: # fix
+        print('fix mode = 3')
         lastKnownPosReuse=0 #reset counter since we refreshed coords
         lastKnownLat=gpsdthread.fix.latitude
         lastKnownLon=gpsdthread.fix.longitude
         print('getPositionDataUsingThread returning mode 3')
         return (lastKnownLat, lastKnownLon)
     else: #  no fix
+        print('fix mode != 3')
         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
-            return (lastKnownLat, lastKnownLon)
             print('getPositionDataUsingThread returning no fix a')
-        elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
-            lastKnownPosReuse += 1
             return (lastKnownLat, lastKnownLon)
+        elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
+            print('LAST_KNOWN_POSITION_REUSE_TIMES < 0:')
+            lastKnownPosReuse += 1
             print('getPositionDataUsingThread returning no fix b')
+            return (lastKnownLat, lastKnownLon)
         else:
+            print('LAST_KNOWN_POSITION_REUSE_TIMES < 0:')
             return(UNKNOWN,UNKNOWN)
-            print('getPositionDataUsingThread returning no fix c')
 
 
 # def getPositionDataFromThread(gps):
@@ -192,7 +197,10 @@ def checkRadar():
     #x = datetime.now()
     #print(x)
     #print("time= ",datetime.datetime.now())
+    print('getPositionDataUsingThread returned')
+    
     print(datetime.now(), homecoords)
+    #print('checking if coords make sense')
     if not ((homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN)): # we have a good gps lock!
         failedGPSTries = 0
         GPS_lock=True
@@ -209,6 +217,7 @@ def checkRadar():
             initialGPSLockBeep == True
         if failedGPSTries >= NUM_GPS_TRIES_UNTIL_DEFAULT: # lots of tries, go for default
             homecoords=(DEFAULTLAT, DEFAULTLON)
+    #print('did check if coords make sense')
 
     if initialGPSLockBeep == True and GPS_lock == True:
         initialGPSLockBeep=False
@@ -220,20 +229,42 @@ def checkRadar():
         #print 'called tts'
         sleep(2)
     r = requests.get(DUMP1090_URL)
+    #print('getting airplane data')
     try:
         airplanes = r.json()
     except:
-        #print 'Error while getting airplane data'
+        print('Error while getting airplane data')
         return
+    #print('got airplane data, checking alarm conditions')
     outerAlarmTriggered = False
     middleAlarmTriggered = False
     innerAlarmTriggered = False
+    # print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+    # print(airplanes)
+    # print('YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY')
+    
     for airplane in airplanes['aircraft']:
         try:
-            altitude = int(airplane["alt_baro"])
-            planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
+            # print('+++++++++++++++++++++')
+            # print('airplane.keys()=')
+            # print(airplane.keys())
+            # print('---------------------')
+            if "alt_baro" in airplane.keys():
+                altitude = int(airplane["alt_baro"])
+            else:
+                #print('no alt_baro key')
+                break
+            if LATITUDE in airplane.keys():
+                planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
+            else:
+                #print('no lat/lon key')
+                break
+            # altitude = int(airplane["alt_baro"])
+            # planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
+            print(altitude,planecoords)
             distanceToPlane = geopy.distance.geodesic(homecoords, planecoords).miles
             bearing_to_plane=get_bearing(homecoords[0], homecoords[1], airplane[LATITUDE], airplane[LONGTITUDE])
+            print(altitude,planecoords,distanceToPlane,bearing_to_plane)
             if altitude < ALTITUDE_ALARM_FEET:
                 if distanceToPlane < INNER_PERIMETER_ALARM_MILES:
                     innerAlarmTriggered = True
@@ -248,7 +279,10 @@ def checkRadar():
                     auralreport(distanceToPlane,altitude,bearing_to_plane)
                     #print 'Outer alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'   
         except KeyError:
+            print('Error checking airplane conditions:')
+            print(KeyError)
             pass
+    #print('did check alarm conditions, buzzing if needed')
     if innerAlarmTriggered:
         buzz(1)
         buzz(1)
@@ -258,6 +292,7 @@ def checkRadar():
         buzz(1)
     elif outerAlarmTriggered:
         buzz(1)
+    #print('done with check radar, returning...')
 
 
 def testgps(): # from: https://ozzmaker.com/using-python-with-a-gps-receiver-on-a-raspberry-pi/
@@ -402,19 +437,34 @@ try:
     
 
     while running:
+        print('#################################################################')
+        print('m_iteration_number = ',m_iteration_number)
+        m_iteration_number=m_iteration_number+1
+        #print('calling checkradar')
         checkRadar()
+        #print('called checkradar')
         #checkRadartest()
         #nx = gpsd.next()
         #testgps()
         sys.stdout.flush()
-        sleep(INTERVAL_SECONDS)
         #print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
         #time.sleep(INTERVAL_SECONDS)
+        #print('calling internet_is_connected')
+        sys.stdout.flush()
         internet_is_connected= check_internet()
+        #print('called internet_is_connected')
+        #print('waiting')
+        sys.stdout.flush()
+        sleep(INTERVAL_SECONDS)
+        #print('done waiting')
+        #print('----------------------------------------------------------------')
+        sys.stdout.flush()
 
 
 except (ValueError):
 	#sometimes we get errors parsing json
+    print('some error:')
+    print(ValueError)
     pass
 
 except (KeyboardInterrupt):
