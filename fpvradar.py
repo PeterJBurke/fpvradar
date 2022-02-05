@@ -261,10 +261,11 @@ def checkRadar():
                 break
             # altitude = int(airplane["alt_baro"])
             # planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
-            print(altitude,planecoords)
+            #print(altitude,planecoords)
             distanceToPlane = geopy.distance.geodesic(homecoords, planecoords).miles
             bearing_to_plane=get_bearing(homecoords[0], homecoords[1], airplane[LATITUDE], airplane[LONGTITUDE])
-            print(altitude,planecoords,distanceToPlane,bearing_to_plane)
+            # print('Alt = ',altitude,' lat/lon = ',planecoords,'dist =  ',distanceToPlane, 'mi. bearing = ',bearing_to_plane)
+            print('Alt = ',altitude,' lat/lon = ',planecoords,'dist =   %.0f' % distanceToPlane, 'mi. bearing = %.0f' % bearing_to_plane)
             if altitude < ALTITUDE_ALARM_FEET:
                 if distanceToPlane < INNER_PERIMETER_ALARM_MILES:
                     innerAlarmTriggered = True
