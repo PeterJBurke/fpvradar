@@ -313,11 +313,12 @@ def tts_depending_on_internet(m_text_to_say):
             #print 'calling gtts'
             tts_google(m_text_to_say)
             #print 'did call gtts'
-
         else: 
             #print 'calling festival'
             tts_festival(m_text_to_say)
             #print 'did call festival'
+    else:
+        return
 
 def tts_festival(m_text_to_say):
     systemcommandtosend='echo "'+m_text_to_say+'"| festival --tts '
