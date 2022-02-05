@@ -96,6 +96,7 @@ class GpsPoller(threading.Thread):
     global gpsdthread
     while gpsp.running:
       gpsdthread.next() #this will continue to loop and grab EACH set of gpsd info to clear the buffer
+      sleep(0.1)
 
 def getPositionData(gps):
     nx = gpsd.next()
@@ -121,7 +122,7 @@ def getPositionData(gps):
     	    return(UNKNOWN,UNKNOWN)
 
 def getPositionDataUsingThread():
-    print('getPositionDataUsingThread called')
+    #print('getPositionDataUsingThread called')
     global lastKnownLat
     global lastKnownLon
     global lastKnownPosReuse  
@@ -131,19 +132,19 @@ def getPositionDataUsingThread():
         lastKnownPosReuse=0 #reset counter since we refreshed coords
         lastKnownLat=gpsdthread.fix.latitude
         lastKnownLon=gpsdthread.fix.longitude
-        print('getPositionDataUsingThread returning mode 3')
+        #print('getPositionDataUsingThread returning mode 3')
         return (lastKnownLat, lastKnownLon)
     else: #  no fix
         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
             return (lastKnownLat, lastKnownLon)
-            print('getPositionDataUsingThread returning no fix a')
+            #print('getPositionDataUsingThread returning no fix a')
         elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
             lastKnownPosReuse += 1
             return (lastKnownLat, lastKnownLon)
-            print('getPositionDataUsingThread returning no fix b')
+            #print('getPositionDataUsingThread returning no fix b')
         else:
             return(UNKNOWN,UNKNOWN)
-            print('getPositionDataUsingThread returning no fix c')
+            #print('getPositionDataUsingThread returning no fix c')
 
 
 # def getPositionDataFromThread(gps):
