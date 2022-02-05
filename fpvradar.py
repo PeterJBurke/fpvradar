@@ -164,7 +164,7 @@ def getPositionDataUsingThread():
     	    return(UNKNOWN,UNKNOWN)
 
 def buzz(wait=0.1):
-    if USE_BUZZER:
+    if USE_BUZZER == True:
         buzzer.on()
         sleep(wait)
         buzzer.off()
@@ -376,7 +376,7 @@ def auralreport(m_distance,m_alt,m_bearing):
     tts_depending_on_internet(texttosay)
 
 def tts_depending_on_internet(m_text_to_say):
-    if TTS:    
+    if TTS == True:    
         if (internet_is_connected==True):
             #print 'calling gtts'
             tts_google(m_text_to_say)
