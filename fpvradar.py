@@ -248,17 +248,17 @@ def checkRadar():
         try:
             m_alt_data_is_valid=False
             m_lat_lon_data_is_valid=False
-            m_type_data_is_valid=False
+            m_category_data_is_valid=False
             m_aircraft_is_a_helicopter=False
             ##print('+++++++++++++++++++++')
-            ##print('airplane.keys()=')
-            ##print(airplane.keys())
+            print('airplane.keys()=')
+            print(airplane.keys())
             ##print('---------------------')
             ##print('checking alt_baro')
-            if 'type' in airplane.keys():
+            if 'category' in airplane.keys():
                 m_type_data_is_valid=True
-                print('Type = ',airplane["type"])
-                if airplane["type"]=="A3":
+                print('Category = ',airplane["category"])
+                if airplane["category"]=="A3":
                     m_aircraft_is_a_helicopter=True
                     
 
