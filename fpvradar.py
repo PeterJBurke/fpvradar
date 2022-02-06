@@ -1,4 +1,5 @@
 from pickle import FALSE
+from socketserver import ThreadingUnixDatagramServer
 from sre_constants import IN
 from traceback import print_exc
 import requests
@@ -54,7 +55,7 @@ INNER_PERIMETER_ALARM_MILES = 1
 ALTITUDE_ALARM_FEET = 2000.0
 running = True
 #gpsd = gps(mode=WATCH_ENABLE | WATCH_NEWSTYLE)
-print('latitude\tlongitude\ttime utc\t\t\taltitude\tepv\tept\tspeed\tclimb') # '\t' = TAB to try and output the data in columns.
+#print('latitude\tlongitude\ttime utc\t\t\taltitude\tepv\tept\tspeed\tclimb') # '\t' = TAB to try and output the data in columns.
 
 buzzer = Buzzer(BUZZER_PIN)
 lastKnownLat=UNKNOWN
@@ -67,8 +68,8 @@ GPS_lock=False
 
 m_iteration_number=0
 
-USE_BUZZER=False
-TTS=False
+USE_BUZZER=True
+TTS=True
 
 NUM_GPS_TRIES_UNTIL_DEFAULT=10
 
@@ -124,31 +125,31 @@ def getPositionData(gps):
     	    return(UNKNOWN,UNKNOWN)
 
 def getPositionDataUsingThread():
-    print('getPositionDataUsingThread called')
+    ##print('getPositionDataUsingThread called')
     global lastKnownLat
     global lastKnownLon
     global lastKnownPosReuse  
     global gpsdthread
     # print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
     if gpsdthread.fix.mode == 3: # fix
-        print('fix mode = 3')
+        ##print('fix mode = 3')
         lastKnownPosReuse=0 #reset counter since we refreshed coords
         lastKnownLat=gpsdthread.fix.latitude
         lastKnownLon=gpsdthread.fix.longitude
-        print('getPositionDataUsingThread returning mode 3')
+        ##print('getPositionDataUsingThread returning mode 3')
         return (lastKnownLat, lastKnownLon)
     else: #  no fix
-        print('fix mode != 3')
+        ##print('fix mode != 3')
         if LAST_KNOWN_POSITION_REUSE_TIMES < 0:
-            print('getPositionDataUsingThread returning no fix a')
+            ##print('getPositionDataUsingThread returning no fix a')
             return (lastKnownLat, lastKnownLon)
         elif lastKnownPosReuse < LAST_KNOWN_POSITION_REUSE_TIMES:
-            print('LAST_KNOWN_POSITION_REUSE_TIMES < 0:')
+            ##print('LAST_KNOWN_POSITION_REUSE_TIMES < 0:')
             lastKnownPosReuse += 1
-            print('getPositionDataUsingThread returning no fix b')
+            ##print('getPositionDataUsingThread returning no fix b')
             return (lastKnownLat, lastKnownLon)
         else:
-            print('LAST_KNOWN_POSITION_REUSE_TIMES < 0:')
+            ##print('LAST_KNOWN_POSITION_REUSE_TIMES < 0:')
             return(UNKNOWN,UNKNOWN)
 
 
@@ -197,10 +198,10 @@ def checkRadar():
     #x = datetime.now()
     #print(x)
     #print("time= ",datetime.datetime.now())
-    print('getPositionDataUsingThread returned')
+    ##print('getPositionDataUsingThread returned')
     
-    print(datetime.now(), homecoords)
-    #print('checking if coords make sense')
+    ##print(datetime.now(), homecoords)
+    ##print('checking if coords make sense')
     if not ((homecoords[0] == UNKNOWN) or (homecoords[1] == UNKNOWN)): # we have a good gps lock!
         failedGPSTries = 0
         GPS_lock=True
@@ -217,7 +218,7 @@ def checkRadar():
             initialGPSLockBeep == True
         if failedGPSTries >= NUM_GPS_TRIES_UNTIL_DEFAULT: # lots of tries, go for default
             homecoords=(DEFAULTLAT, DEFAULTLON)
-    #print('did check if coords make sense')
+    ##print('did check if coords make sense')
 
     if initialGPSLockBeep == True and GPS_lock == True:
         initialGPSLockBeep=False
@@ -229,56 +230,76 @@ def checkRadar():
         #print 'called tts'
         sleep(2)
     r = requests.get(DUMP1090_URL)
-    #print('getting airplane data')
+    ##print('getting airplane data')
     try:
         airplanes = r.json()
     except:
         print('Error while getting airplane data')
         return
-    #print('got airplane data, checking alarm conditions')
+    ##print('got airplane data, checking alarm conditions')
     outerAlarmTriggered = False
     middleAlarmTriggered = False
     innerAlarmTriggered = False
-    # print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
-    # print(airplanes)
-    # print('YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY')
+    ##print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+    #print(airplanes)
+    ##print('YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY')
     
     for airplane in airplanes['aircraft']:
         try:
-            # print('+++++++++++++++++++++')
-            # print('airplane.keys()=')
-            # print(airplane.keys())
-            # print('---------------------')
-            if "alt_baro" in airplane.keys():
-                altitude = int(airplane["alt_baro"])
-            else:
-                #print('no alt_baro key')
-                break
+            m_alt_data_is_valid=False
+            m_lat_lon_data_is_valid=False
+            m_type_data_is_valid=False
+            m_aircraft_is_a_helicopter=False
+            ##print('+++++++++++++++++++++')
+            ##print('airplane.keys()=')
+            ##print(airplane.keys())
+            ##print('---------------------')
+            ##print('checking alt_baro')
+            if 'type' in airplane.keys():
+                m_type_data_is_valid=True
+                print('Type = ',airplane["type"])
+                if airplane["type"]=="A3":
+                    m_aircraft_is_a_helicopter=True
+                    
+
+
+
+            if 'alt_baro' in airplane.keys():
+                altitude = airplane["alt_baro"]
+                ##print('altitude =', altitude)
+                ##print('type(altitude) = ',type(altitude))
+                if altitude!='ground':
+                    m_alt_data_is_valid=True
+
+            ##print('checking LATITUDE')
             if LATITUDE in airplane.keys():
                 planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
-            else:
-                #print('no lat/lon key')
-                break
+                m_lat_lon_data_is_valid=True
             # altitude = int(airplane["alt_baro"])
             # planecoords = (airplane[LATITUDE], airplane[LONGTITUDE])
             #print(altitude,planecoords)
-            distanceToPlane = geopy.distance.geodesic(homecoords, planecoords).miles
-            bearing_to_plane=get_bearing(homecoords[0], homecoords[1], airplane[LATITUDE], airplane[LONGTITUDE])
-            # print('Alt = ',altitude,' lat/lon = ',planecoords,'dist =  ',distanceToPlane, 'mi. bearing = ',bearing_to_plane)
-            print('Alt = ',altitude,' lat/lon = ',planecoords,'dist =   %.0f' % distanceToPlane, 'mi. bearing = %.0f' % bearing_to_plane)
-            if altitude < ALTITUDE_ALARM_FEET:
-                if distanceToPlane < INNER_PERIMETER_ALARM_MILES:
-                    innerAlarmTriggered = True
-                    #print 'Inner alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'
-                    auralreport(distanceToPlane,altitude,bearing_to_plane)
-                elif distanceToPlane < MIDDLE_PERIMETER_ALARM_MILES:
-                    middleAlarmTriggered = True
-                    #print 'Middle alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'
-                    auralreport(distanceToPlane,altitude,bearing_to_plane)
-                elif distanceToPlane < OUTER_PERIMETER_ALARM_MILES:
-                    outerAlarmTriggered = True
-                    auralreport(distanceToPlane,altitude,bearing_to_plane)
-                    #print 'Outer alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'   
+            ##print('if valid...')
+            ##print(m_alt_data_is_valid,m_lat_lon_data_is_valid)
+            if m_alt_data_is_valid==True and m_lat_lon_data_is_valid==True:
+                ##print('valid')
+                distanceToPlane = geopy.distance.geodesic(homecoords, planecoords).miles
+                bearing_to_plane=get_bearing(homecoords[0], homecoords[1], airplane[LATITUDE], airplane[LONGTITUDE])
+                # print('Alt = ',altitude,' lat/lon = ',planecoords,'dist =  ',distanceToPlane, 'mi. bearing = ',bearing_to_plane)
+                #print('Alt = ',altitude,' lat/lon = ',planecoords,'dist =   %.0f' % distanceToPlane, 'mi. bearing = %.0f' % bearing_to_plane)
+                #print(altitude,planecoords)
+                if altitude < ALTITUDE_ALARM_FEET:
+                    if distanceToPlane < INNER_PERIMETER_ALARM_MILES:
+                        innerAlarmTriggered = True
+                        #print 'Inner alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'
+                        auralreport(distanceToPlane,altitude,bearing_to_plane,m_aircraft_is_a_helicopter)
+                    elif distanceToPlane < MIDDLE_PERIMETER_ALARM_MILES:
+                        middleAlarmTriggered = True
+                        #print 'Middle alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'
+                        auralreport(distanceToPlane,altitude,bearing_to_plane,m_aircraft_is_a_helicopter)
+                    elif distanceToPlane < OUTER_PERIMETER_ALARM_MILES:
+                        outerAlarmTriggered = True
+                        auralreport(distanceToPlane,altitude,bearing_to_plane,m_aircraft_is_a_helicopter)
+                        #print 'Outer alarm triggered by '+airplane['flight']+' at '+str(datetime.now())+' with distance '+str(distanceToPlane)+ 'at bearing' + str(bearing_to_plane) + 'degrees.'   
         except KeyError:
             print('Error checking airplane conditions:')
             print(KeyError)
@@ -309,7 +330,7 @@ def testgps(): # from: https://ozzmaker.com/using-python-with-a-gps-receiver-on-
         print(getattr(report,'climb','nan'),"\t")
     return
 
-def auralreport(m_distance,m_alt,m_bearing):
+def auralreport(m_distance,m_alt,m_bearing,m_is_this_a_helicopter):
     #buzz(0.5)
     distance_string = "{:.1f}".format(m_distance)
     m_bearing_string = "{:.0f}".format(m_bearing)
@@ -335,10 +356,15 @@ def auralreport(m_distance,m_alt,m_bearing):
         m_direction_text='north'
     
     #texttosay='Attention: Aircraft detected with to the '+ m_direction_text+ ' with altitude '+str(m_alt) +' feet, at '+  distance_string + ' miles. At bearing '+m_bearing_string +" degrees."
-    if GPS_lock==True:
-        texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ ' at altitude '+str(m_alt) +' feet.'
+    m_kind_string=""
+    if m_is_this_a_helicopter==False:
+        m_kind_string="Aircraft "
     else:
-        texttosay='Aircraft detected ' + distance_string + ' miles to the ' + m_direction_text+ 'of default position at altitude '+str(m_alt) +' feet.'
+        m_kind_string="Helicopter "
+    if GPS_lock==True:
+        texttosay=m_kind_string +' detected ' + distance_string + ' miles to the ' + m_direction_text+ ' at altitude '+str(m_alt) +' feet.'
+    else:
+        texttosay=m_kind_string +' detected ' + distance_string + ' miles to the ' + m_direction_text+ 'of default position at altitude '+str(m_alt) +' feet.'
         print('**********************')
     print(datetime.now(), texttosay)
     tts_depending_on_internet(texttosay)
@@ -441,24 +467,24 @@ try:
         print('#################################################################')
         print('m_iteration_number = ',m_iteration_number)
         m_iteration_number=m_iteration_number+1
-        #print('calling checkradar')
+        ##print('calling checkradar')
         checkRadar()
-        #print('called checkradar')
+        ##print('called checkradar')
         #checkRadartest()
         #nx = gpsd.next()
         #testgps()
         sys.stdout.flush()
         #print(gpsdthread.fix.mode, gpsdthread.fix.latitude , gpsdthread.fix.longitude, datetime.now())
         #time.sleep(INTERVAL_SECONDS)
-        #print('calling internet_is_connected')
+        ##print('calling internet_is_connected')
         sys.stdout.flush()
         internet_is_connected= check_internet()
-        #print('called internet_is_connected')
-        #print('waiting')
+        ##print('called internet_is_connected')
+        ##print('waiting')
         sys.stdout.flush()
         sleep(INTERVAL_SECONDS)
-        #print('done waiting')
-        #print('----------------------------------------------------------------')
+        ##print('done waiting')
+        print('----------------------------------------------------------------')
         sys.stdout.flush()
 
 
