@@ -257,7 +257,7 @@ def checkRadar():
             ##print('checking alt_baro')
             if 'category' in airplane.keys():
                 m_type_data_is_valid=True
-                print('Category = ',airplane["category"])
+                #print('Category = ',airplane["category"])
                 if airplane["category"]=="A7":
                     m_aircraft_is_a_helicopter=True
                     
